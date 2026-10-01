@@ -383,7 +383,6 @@ async function saveJournal(e){
   }
 }
 
-async 
 async function loadMaterials(){
   panelLoading('Memuat materi dan LKPD...');
   try{
@@ -425,7 +424,7 @@ async function deleteMaterial(id){
   }catch(e){alert(e.message);}
 }
 
-function loadResources(type){panelLoading('Memuat '+type.toLowerCase()+'...');try{const r=await api('getResources',{token:state.token,meetingId:state.meeting.PERTEMUAN_ID,type});if(!r.success)throw new Error(r.message||'Resource gagal dimuat.');state.resources[type]=r.data||[];renderResources(type);}catch(e){panelError(e.message);}}
+async function loadResources(type){panelLoading('Memuat '+type.toLowerCase()+'...');try{const r=await api('getResources',{token:state.token,meetingId:state.meeting.PERTEMUAN_ID,type});if(!r.success)throw new Error(r.message||'Resource gagal dimuat.');state.resources[type]=r.data||[];renderResources(type);}catch(e){panelError(e.message);}}
 function renderResources(type){const items=state.resources[type]||[];const title={MATERI:'📚 Materi / LKPD',TUGAS:'📋 Tugas',PENILAIAN:'📊 Penilaian'}[type];const rows=items.map(x=>`<div class="resource"><div><strong>${esc(x.JUDUL||'-')}</strong><p>${esc(x.DESKRIPSI||x.KRITERIA||x.KETERANGAN||'')}</p></div>${x.URL?`<a class="btn small" href="${esc(x.URL)}" target="_blank" rel="noopener">Buka ↗</a>`:''}</div>`).join('');$('#workspacePanel').innerHTML=`<div class="panel-title"><div><h2>${title}</h2><p>Resource yang terkait langsung dengan pertemuan.</p></div></div><div class="resource-list">${rows||'<div class="empty-inline">Belum ada data.</div>'}</div><button class="btn secondary" onclick="addResource('${type}')">＋ Tambah</button>`;}
 async function addResource(type){const judul=prompt('Judul '+type+':');if(!judul)return;const url=prompt('URL Google Drive / Learning Hub (opsional):')||'';const p={judul,url,sumber:url?'GOOGLE_DRIVE':'MANUAL',jenis:type==='MATERI'?'LINK':'TUGAS',deskripsi:judul,kriteria:judul,nilaiMaksimal:100};try{const r=await api('saveResource',{token:state.token,meetingId:state.meeting.PERTEMUAN_ID,type,payload:p});if(!r.success)throw new Error(r.message||'Gagal menyimpan.');await loadResources(type);}catch(e){alert(e.message);}}
 function toast(msg){const el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),1800);}
