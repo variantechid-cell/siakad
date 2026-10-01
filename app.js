@@ -1,5 +1,5 @@
 /* ================================================================
-   SIAKAD GURU MAPEL - APP.JS V27 PERSONAL WORKSPACE CORE
+   SIAKAD GURU MAPEL - APP.JS V29 PERSONAL WORKSPACE CORE
    ----------------------------------------------------------------
    Frontend sengaja mandiri. Tidak bergantung pada HTML lama V18/V21/V23.
    Cocok untuk localhost Visual Studio Code dan GitHub Pages.
@@ -23,6 +23,7 @@ let state = {
   meeting: null,
   students: [],
   lastRecap: null,
+  materials: [],
   journal: null,
   resources: { MATERI: [], TUGAS: [], PENILAIAN: [] }
 };
@@ -188,7 +189,7 @@ async function renderMeeting() {
       <button id="teacherCheckBtn" class="btn primary" onclick="checkInTeacher()">👨‍🏫 Presensi Guru</button>
       <button class="btn secondary" onclick="loadStudents()">👨‍🎓 Absensi Siswa</button>
       <button class="btn secondary" onclick="loadJournal()">📝 Jurnal</button>
-      <button class="btn secondary" onclick="loadResources('MATERI')">📚 Materi/LKPD</button>
+      <button class="btn secondary" onclick="loadMaterials()">📚 Materi/LKPD</button>
       <button class="btn secondary" onclick="loadResources('TUGAS')">📋 Tugas</button>
       <button class="btn secondary" onclick="loadResources('PENILAIAN')">📊 Penilaian</button>
       <button class="btn secondary" onclick="loadMonthlyRecap()">📊 Rekap Bulanan</button>
@@ -284,12 +285,147 @@ function downloadRecapCSV(){
 
 async function loadJournal(){
   panelLoading('Memuat jurnal...');
-  try{const r=await api('getJournal',{token:state.token,meetingId:state.meeting.PERTEMUAN_ID});state.journal=r.data||{};renderJournal();}catch(e){panelError(e.message);}
+  try{
+    const r=await api('getJournal',{token:state.token,meetingId:state.meeting.PERTEMUAN_ID});
+    if(!r.success)throw new Error(r.message||'Jurnal gagal dimuat.');
+    state.journal=r.data||{};
+    renderJournal();
+  }catch(e){panelError(e.message);}
 }
-function renderJournal(){const j=state.journal||{};$('#workspacePanel').innerHTML=`<div class="panel-title"><div><h2>📝 Jurnal Mengajar</h2><p>Data otomatis terikat ke pertemuan ini.</p></div></div><form class="form-grid" onsubmit="saveJournal(event)"><label>Tujuan Pembelajaran<textarea id="jTujuan">${esc(j.TUJUAN_PEMBELAJARAN||'')}</textarea></label><label>Materi<textarea id="jMateri">${esc(j.MATERI||'')}</textarea></label><label>Kegiatan Pembelajaran<textarea id="jKegiatan">${esc(j.KEGIATAN_PEMBELAJARAN||'')}</textarea></label><label>Hasil Pembelajaran<textarea id="jHasil">${esc(j.HASIL_PEMBELAJARAN||'')}</textarea></label><label>Kendala<textarea id="jKendala">${esc(j.KENDALA||'')}</textarea></label><label>Tindak Lanjut<textarea id="jTL">${esc(j.TINDAK_LANJUT||'')}</textarea></label><label>Catatan<textarea id="jCatatan">${esc(j.CATATAN||'')}</textarea></label><div><button class="btn primary">💾 Simpan Jurnal</button></div></form>`;}
-async function saveJournal(e){e.preventDefault();const p={tujuan:$('#jTujuan').value,materi:$('#jMateri').value,kegiatan:$('#jKegiatan').value,hasil:$('#jHasil').value,kendala:$('#jKendala').value,tindakLanjut:$('#jTL').value,catatan:$('#jCatatan').value};try{const r=await api('saveJournal',{token:state.token,meetingId:state.meeting.PERTEMUAN_ID,payload:p});if(!r.success)throw new Error(r.message||'Gagal menyimpan jurnal.');state.journal=r.data;toast('Jurnal tersimpan');}catch(x){alert(x.message);}}
+function renderJournal(){
+  const j=state.journal||{}, s=state.schedule||{}, m=state.meeting||{};
+  const savedAt=j.UPDATED_AT ? formatDateTime(j.UPDATED_AT) : 'Belum pernah disimpan';
+  $('#workspacePanel').innerHTML=`
+    <div class="journal-head">
+      <div>
+        <div class="eyebrow">CATATAN PEMBELAJARAN</div>
+        <h2>📝 Jurnal Mengajar</h2>
+        <p>Identitas pertemuan terisi otomatis. Anda cukup mencatat proses pembelajaran.</p>
+      </div>
+      <div class="journal-meta">
+        <span>${esc(s.kelas||'-')}</span>
+        <span>${esc(s.mapel||'-')}</span>
+        <span>Pertemuan ${esc(m.PERTEMUAN_KE||'-')}</span>
+        <span>${esc(savedAt)}</span>
+      </div>
+    </div>
 
-async function loadResources(type){panelLoading('Memuat '+type.toLowerCase()+'...');try{const r=await api('getResources',{token:state.token,meetingId:state.meeting.PERTEMUAN_ID,type});if(!r.success)throw new Error(r.message||'Resource gagal dimuat.');state.resources[type]=r.data||[];renderResources(type);}catch(e){panelError(e.message);}}
+    <form class="journal-form" onsubmit="saveJournal(event)">
+      <div class="journal-section">
+        <h3>🎯 Perencanaan</h3>
+        <label>Tujuan Pembelajaran
+          <textarea id="jTujuan" placeholder="Apa yang diharapkan siswa capai pada pertemuan ini?">${esc(j.TUJUAN_PEMBELAJARAN||'')}</textarea>
+        </label>
+        <label>Materi
+          <textarea id="jMateri" placeholder="Materi/topik yang dibahas">${esc(j.MATERI||'')}</textarea>
+        </label>
+      </div>
+
+      <div class="journal-section">
+        <h3>🏫 Pelaksanaan</h3>
+        <label>Kegiatan Pembelajaran
+          <textarea id="jKegiatan" class="tall" placeholder="Ringkas kegiatan awal, inti, praktik/diskusi, dan penutup">${esc(j.KEGIATAN_PEMBELAJARAN||'')}</textarea>
+        </label>
+        <label>Hasil Pembelajaran
+          <textarea id="jHasil" placeholder="Apa yang berhasil dicapai siswa?">${esc(j.HASIL_PEMBELAJARAN||'')}</textarea>
+        </label>
+      </div>
+
+      <div class="journal-section">
+        <h3>🔎 Refleksi</h3>
+        <div class="journal-two">
+          <label>Kendala
+            <textarea id="jKendala" placeholder="Kendala selama pembelajaran">${esc(j.KENDALA||'')}</textarea>
+          </label>
+          <label>Tindak Lanjut
+            <textarea id="jTL" placeholder="Remedial, pengayaan, pertemuan berikutnya, dll.">${esc(j.TINDAK_LANJUT||'')}</textarea>
+          </label>
+        </div>
+        <label>Catatan
+          <textarea id="jCatatan" placeholder="Catatan tambahan">${esc(j.CATATAN||'')}</textarea>
+        </label>
+      </div>
+
+      <div class="journal-footer">
+        <span id="journalSaveInfo">Terakhir disimpan: ${esc(savedAt)}</span>
+        <button id="journalSaveBtn" class="btn primary" type="submit">💾 Simpan Jurnal</button>
+      </div>
+    </form>`;
+}
+function formatDateTime(v){
+  if(!v)return '';
+  const d=new Date(v);
+  return isNaN(d.getTime())?String(v):d.toLocaleString('id-ID',{dateStyle:'medium',timeStyle:'short'});
+}
+async function saveJournal(e){
+  e.preventDefault();
+  const btn=$('#journalSaveBtn');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Menyimpan...';}
+  const p={
+    tujuan:$('#jTujuan').value.trim(),
+    materi:$('#jMateri').value.trim(),
+    kegiatan:$('#jKegiatan').value.trim(),
+    hasil:$('#jHasil').value.trim(),
+    kendala:$('#jKendala').value.trim(),
+    tindakLanjut:$('#jTL').value.trim(),
+    catatan:$('#jCatatan').value.trim()
+  };
+  try{
+    const r=await api('saveJournal',{token:state.token,meetingId:state.meeting.PERTEMUAN_ID,payload:p});
+    if(!r.success)throw new Error(r.message||'Gagal menyimpan jurnal.');
+    state.journal=r.data||{};
+    const info=$('#journalSaveInfo');
+    if(info)info.textContent='✓ Jurnal berhasil disimpan sekarang';
+    toast(r.message||'Jurnal tersimpan');
+  }catch(x){alert(x.message);}
+  finally{
+    if(btn){btn.disabled=false;btn.textContent='💾 Simpan Jurnal';}
+  }
+}
+
+async 
+async function loadMaterials(){
+  panelLoading('Memuat materi dan LKPD...');
+  try{
+    const r=await api('getMeetingMaterials',{token:state.token,meetingId:state.meeting.PERTEMUAN_ID});
+    if(!r.success)throw new Error(r.message||'Materi gagal dimuat.');
+    state.materials=r.data||[];renderMaterials();
+  }catch(e){panelError(e.message);}
+}
+function renderMaterials(){
+  const list=state.materials||[];
+  const cards=list.map(x=>`<div class="resource-card"><div><strong>${esc(x.JUDUL)}</strong><div class="muted">${esc(x.JENIS||'Materi')} · ${esc(x.SUMBER||'')}</div><div class="muted">${esc(x.KETERANGAN||'')}</div></div><div class="resource-actions"><a class="btn primary" href="${esc(x.URL)}" target="_blank" rel="noopener">🔗 Buka</a><button class="btn danger" onclick="deleteMaterial('${esc(x.MATERI_ID)}')">Hapus</button></div></div>`).join('');
+  $('#workspacePanel').innerHTML=`<div class="panel-title"><div><h2>📚 Materi & LKPD</h2><p>File tetap berada di Google Drive atau platform sumber.</p></div><button class="btn primary" onclick="showMaterialForm()">＋ Tambah</button></div><div class="resource-list">${cards||'<div class="empty">Belum ada materi.</div>'}</div>`;
+}
+function showMaterialForm(){
+  $('#workspacePanel').innerHTML=`<div class="panel-title"><div><h2>＋ Tambah Materi / LKPD</h2><p>Workspace menyimpan referensi, bukan menyalin file.</p></div></div>
+  <form class="material-form" onsubmit="saveMaterial(event)">
+  <label>Judul<input id="mJudul" required placeholder="Contoh: LKPD 01"></label>
+  <div class="material-two"><label>Jenis<select id="mJenis"><option>Materi</option><option>LKPD</option><option>Video</option><option>Presentasi</option><option>Link Pembelajaran</option><option>Lainnya</option></select></label>
+  <label>Sumber<select id="mSumber"><option>Google Drive</option><option>TJKT Learning Hub</option><option>YouTube</option><option>Website</option><option>Lainnya</option></select></label></div>
+  <label>Link / URL<input id="mUrl" type="url" required placeholder="https://..."></label>
+  <label>Google Drive File ID<input id="mDriveId" placeholder="Opsional"></label>
+  <label>Keterangan<textarea id="mKet" placeholder="Keterangan singkat"></textarea></label>
+  <div class="journal-footer"><button type="button" class="btn secondary" onclick="loadMaterials()">Batal</button><button class="btn primary">💾 Simpan</button></div></form>`;
+}
+async function saveMaterial(e){
+  e.preventDefault();
+  try{
+    const r=await api('saveMaterial',{token:state.token,meetingId:state.meeting.PERTEMUAN_ID,payload:{judul:$('#mJudul').value.trim(),jenis:$('#mJenis').value,sumber:$('#mSumber').value,url:$('#mUrl').value.trim(),driveFileId:$('#mDriveId').value.trim(),keterangan:$('#mKet').value.trim()}});
+    if(!r.success)throw new Error(r.message||'Materi gagal disimpan.');
+    state.materials=r.data||[];renderMaterials();toast('Materi berhasil ditambahkan');
+  }catch(e){alert(e.message);}
+}
+async function deleteMaterial(id){
+  if(!confirm('Hapus referensi ini? File asli di Google Drive tidak akan dihapus.'))return;
+  try{
+    const r=await api('deleteMaterial',{token:state.token,meetingId:state.meeting.PERTEMUAN_ID,materialId:id});
+    if(!r.success)throw new Error(r.message||'Gagal menghapus.');
+    state.materials=r.data||[];renderMaterials();toast('Referensi dihapus');
+  }catch(e){alert(e.message);}
+}
+
+function loadResources(type){panelLoading('Memuat '+type.toLowerCase()+'...');try{const r=await api('getResources',{token:state.token,meetingId:state.meeting.PERTEMUAN_ID,type});if(!r.success)throw new Error(r.message||'Resource gagal dimuat.');state.resources[type]=r.data||[];renderResources(type);}catch(e){panelError(e.message);}}
 function renderResources(type){const items=state.resources[type]||[];const title={MATERI:'📚 Materi / LKPD',TUGAS:'📋 Tugas',PENILAIAN:'📊 Penilaian'}[type];const rows=items.map(x=>`<div class="resource"><div><strong>${esc(x.JUDUL||'-')}</strong><p>${esc(x.DESKRIPSI||x.KRITERIA||x.KETERANGAN||'')}</p></div>${x.URL?`<a class="btn small" href="${esc(x.URL)}" target="_blank" rel="noopener">Buka ↗</a>`:''}</div>`).join('');$('#workspacePanel').innerHTML=`<div class="panel-title"><div><h2>${title}</h2><p>Resource yang terkait langsung dengan pertemuan.</p></div></div><div class="resource-list">${rows||'<div class="empty-inline">Belum ada data.</div>'}</div><button class="btn secondary" onclick="addResource('${type}')">＋ Tambah</button>`;}
 async function addResource(type){const judul=prompt('Judul '+type+':');if(!judul)return;const url=prompt('URL Google Drive / Learning Hub (opsional):')||'';const p={judul,url,sumber:url?'GOOGLE_DRIVE':'MANUAL',jenis:type==='MATERI'?'LINK':'TUGAS',deskripsi:judul,kriteria:judul,nilaiMaksimal:100};try{const r=await api('saveResource',{token:state.token,meetingId:state.meeting.PERTEMUAN_ID,type,payload:p});if(!r.success)throw new Error(r.message||'Gagal menyimpan.');await loadResources(type);}catch(e){alert(e.message);}}
 function toast(msg){const el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),1800);}
@@ -306,7 +442,7 @@ async function boot(){
 function injectCSS(){
   if($('#v25css'))return;
   const s=document.createElement('style');s.id='v25css';s.textContent=`
-  *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f7fb;color:#14213d}button,input,textarea,select{font:inherit}.topbar{background:linear-gradient(135deg,#123c48,#0e2538);color:#fff}.topbar-inner{max-width:1120px;margin:auto;padding:20px 24px;display:flex;justify-content:space-between;align-items:center}.brand{font-size:20px;font-weight:900}.brand span{font-weight:500;opacity:.75}.teacher-name{font-size:13px;opacity:.8;margin-top:4px}.shell{max-width:1120px;margin:auto;padding:28px 24px 60px}.hero{background:linear-gradient(135deg,#fff,#eef7fa);border:1px solid #dbe5ec;border-radius:24px;padding:28px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 12px 35px #17324a12}.eyebrow{font-size:11px;font-weight:900;letter-spacing:.14em;color:#237487}.hero h1,.meeting-head h1{margin:5px 0;font-size:34px}.hero p,.meeting-head p{margin:0;color:#68778b}.hero-stat{width:90px;height:90px;border-radius:20px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid #dbe5ec}.hero-stat strong{font-size:30px}.hero-stat span{font-size:12px;color:#718096}.section-head{margin:30px 0 14px}.section-head h2,.panel-title h2{margin:0}.section-head p,.panel-title p{margin:5px 0;color:#718096}.schedule-list{display:grid;gap:14px}.schedule-card{background:#fff;border:1px solid #dce5ed;border-radius:18px;padding:20px;display:grid;grid-template-columns:130px 1fr auto;gap:20px;align-items:center}.schedule-time{font-weight:900;font-size:20px;color:#173f4a}.schedule-main h3{margin:4px 0;font-size:21px}.schedule-main p{margin:0;color:#617083}.chips{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}.chip{padding:5px 9px;border-radius:999px;background:#edf2f6;font-size:11px;font-weight:800}.chip.green{background:#dcfce7;color:#166534}.chip.orange{background:#ffedd5;color:#9a3412}.btn{border:0;border-radius:11px;padding:10px 15px;font-weight:800;cursor:pointer}.btn.primary{background:#2563eb;color:white}.btn.secondary{background:#eaf0f5;color:#17324a}.btn.ghost{background:#ffffff1c;color:#fff}.btn.danger{background:#dc2626;color:#fff}.btn.small{padding:7px 10px;text-decoration:none;background:#eaf0f5;color:#17324a;font-size:12px}.back{border:0;background:none;color:#2563eb;font-weight:800;cursor:pointer;padding:0;margin-bottom:15px}.meeting-head{background:#fff;border:1px solid #dce5ed;border-radius:20px;padding:24px;display:flex;justify-content:space-between;align-items:center}.meeting-status{padding:8px 13px;border-radius:999px;font-weight:900;font-size:12px}.meeting-status.blue{background:#dbeafe;color:#1d4ed8}.meeting-status.green{background:#dcfce7;color:#166534}.meeting-status.gray{background:#e5e7eb;color:#374151}.action-row{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0}.workspace-panel{background:#fff;border:1px solid #dce5ed;border-radius:20px;padding:22px;min-height:260px}.welcome-workspace{text-align:center;padding:45px 20px;color:#718096}.big-icon{font-size:48px}.loading-card,.error-card,.empty-card{background:#fff;border:1px solid #dce5ed;border-radius:20px;padding:45px;text-align:center;max-width:680px;margin:80px auto}.center-page{min-height:75vh;display:flex;align-items:center;justify-content:center}.error-card{margin:0}.error-icon,.empty-icon{font-size:42px}.spinner{width:32px;height:32px;border:4px solid #dbe5ed;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 15px}@keyframes spin{to{transform:rotate(360deg)}}.panel-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.table-wrap{overflow:auto;border:1px solid #e3e9ef;border-radius:14px}table{width:100%;border-collapse:collapse;min-width:700px}th,td{padding:11px 12px;border-bottom:1px solid #edf1f4;text-align:left;font-size:13px}th{background:#f7fafc;font-size:11px;text-transform:uppercase;letter-spacing:.04em}td small{display:block;color:#8995a3;margin-top:2px}select{padding:7px 9px;border:1px solid #cfd9e2;border-radius:8px;background:#fff}.panel-loading{text-align:center;padding:60px}.panel-error{padding:18px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;color:#9a3412}.form-grid{display:grid;gap:14px}.form-grid label{display:grid;gap:6px;font-size:13px;font-weight:800}.form-grid textarea{min-height:90px;resize:vertical;border:1px solid #ccd7e0;border-radius:10px;padding:10px}.resource-list{display:grid;gap:10px;margin-bottom:15px}.resource{border:1px solid #e0e7ee;border-radius:13px;padding:14px;display:flex;justify-content:space-between;gap:15px;align-items:center}.resource p{margin:4px 0 0;color:#718096;font-size:13px}.empty-inline{padding:25px;text-align:center;color:#8995a3;background:#f8fafc;border-radius:12px}.recap-summary{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}.recap-summary span{background:#eef4f8;border:1px solid #dce6ed;padding:8px 11px;border-radius:10px;font-size:12px}.recap-summary b{margin-left:4px}.toast{position:fixed;right:22px;bottom:22px;background:#14213d;color:white;padding:11px 15px;border-radius:10px;box-shadow:0 8px 25px #0003;font-size:13px}@media(max-width:760px){.shell{padding:18px 14px 40px}.schedule-card{grid-template-columns:1fr}.hero h1,.meeting-head h1{font-size:28px}.hero-stat{width:70px;height:70px}.meeting-head{gap:15px;align-items:flex-start}.schedule-card .btn{width:100%}}
+  *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f7fb;color:#14213d}button,input,textarea,select{font:inherit}.topbar{background:linear-gradient(135deg,#123c48,#0e2538);color:#fff}.topbar-inner{max-width:1120px;margin:auto;padding:20px 24px;display:flex;justify-content:space-between;align-items:center}.brand{font-size:20px;font-weight:900}.brand span{font-weight:500;opacity:.75}.teacher-name{font-size:13px;opacity:.8;margin-top:4px}.shell{max-width:1120px;margin:auto;padding:28px 24px 60px}.hero{background:linear-gradient(135deg,#fff,#eef7fa);border:1px solid #dbe5ec;border-radius:24px;padding:28px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 12px 35px #17324a12}.eyebrow{font-size:11px;font-weight:900;letter-spacing:.14em;color:#237487}.hero h1,.meeting-head h1{margin:5px 0;font-size:34px}.hero p,.meeting-head p{margin:0;color:#68778b}.hero-stat{width:90px;height:90px;border-radius:20px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid #dbe5ec}.hero-stat strong{font-size:30px}.hero-stat span{font-size:12px;color:#718096}.section-head{margin:30px 0 14px}.section-head h2,.panel-title h2{margin:0}.section-head p,.panel-title p{margin:5px 0;color:#718096}.schedule-list{display:grid;gap:14px}.schedule-card{background:#fff;border:1px solid #dce5ed;border-radius:18px;padding:20px;display:grid;grid-template-columns:130px 1fr auto;gap:20px;align-items:center}.schedule-time{font-weight:900;font-size:20px;color:#173f4a}.schedule-main h3{margin:4px 0;font-size:21px}.schedule-main p{margin:0;color:#617083}.chips{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}.chip{padding:5px 9px;border-radius:999px;background:#edf2f6;font-size:11px;font-weight:800}.chip.green{background:#dcfce7;color:#166534}.chip.orange{background:#ffedd5;color:#9a3412}.btn{border:0;border-radius:11px;padding:10px 15px;font-weight:800;cursor:pointer}.btn.primary{background:#2563eb;color:white}.btn.secondary{background:#eaf0f5;color:#17324a}.btn.ghost{background:#ffffff1c;color:#fff}.btn.danger{background:#dc2626;color:#fff}.btn.small{padding:7px 10px;text-decoration:none;background:#eaf0f5;color:#17324a;font-size:12px}.back{border:0;background:none;color:#2563eb;font-weight:800;cursor:pointer;padding:0;margin-bottom:15px}.meeting-head{background:#fff;border:1px solid #dce5ed;border-radius:20px;padding:24px;display:flex;justify-content:space-between;align-items:center}.meeting-status{padding:8px 13px;border-radius:999px;font-weight:900;font-size:12px}.meeting-status.blue{background:#dbeafe;color:#1d4ed8}.meeting-status.green{background:#dcfce7;color:#166534}.meeting-status.gray{background:#e5e7eb;color:#374151}.action-row{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0}.workspace-panel{background:#fff;border:1px solid #dce5ed;border-radius:20px;padding:22px;min-height:260px}.welcome-workspace{text-align:center;padding:45px 20px;color:#718096}.big-icon{font-size:48px}.loading-card,.error-card,.empty-card{background:#fff;border:1px solid #dce5ed;border-radius:20px;padding:45px;text-align:center;max-width:680px;margin:80px auto}.center-page{min-height:75vh;display:flex;align-items:center;justify-content:center}.error-card{margin:0}.error-icon,.empty-icon{font-size:42px}.spinner{width:32px;height:32px;border:4px solid #dbe5ed;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 15px}@keyframes spin{to{transform:rotate(360deg)}}.panel-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.table-wrap{overflow:auto;border:1px solid #e3e9ef;border-radius:14px}table{width:100%;border-collapse:collapse;min-width:700px}th,td{padding:11px 12px;border-bottom:1px solid #edf1f4;text-align:left;font-size:13px}th{background:#f7fafc;font-size:11px;text-transform:uppercase;letter-spacing:.04em}td small{display:block;color:#8995a3;margin-top:2px}select{padding:7px 9px;border:1px solid #cfd9e2;border-radius:8px;background:#fff}.panel-loading{text-align:center;padding:60px}.panel-error{padding:18px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;color:#9a3412}.form-grid{display:grid;gap:14px}.form-grid label{display:grid;gap:6px;font-size:13px;font-weight:800}.form-grid textarea{min-height:90px;resize:vertical;border:1px solid #ccd7e0;border-radius:10px;padding:10px}.resource-list{display:grid;gap:10px;margin-bottom:15px}.resource{border:1px solid #e0e7ee;border-radius:13px;padding:14px;display:flex;justify-content:space-between;gap:15px;align-items:center}.resource p{margin:4px 0 0;color:#718096;font-size:13px}.empty-inline{padding:25px;text-align:center;color:#8995a3;background:#f8fafc;border-radius:12px}.resource-list{display:grid;gap:10px}.resource-card{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid #e2e8ef;border-radius:14px;padding:14px;background:#fff}.resource-card strong{font-size:14px}.resource-card .muted{font-size:12px;color:#718096;margin-top:4px}.resource-actions{display:flex;gap:7px}.material-form{display:grid;gap:12px}.material-form label{display:grid;gap:6px;font-size:13px;font-weight:800}.material-form input,.material-form select,.material-form textarea{border:1px solid #ccd7e0;border-radius:10px;padding:10px;background:#fff}.material-form textarea{min-height:80px;resize:vertical}.material-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.journal-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:20px}.journal-head h2{margin:4px 0}.journal-head p{margin:5px 0;color:#718096}.journal-meta{display:flex;flex-wrap:wrap;gap:7px;justify-content:flex-end}.journal-meta span{background:#f1f5f9;border:1px solid #dbe4eb;padding:7px 10px;border-radius:9px;font-size:11px;font-weight:800;color:#536579}.journal-form{display:grid;gap:14px}.journal-section{border:1px solid #e2e8ef;border-radius:15px;padding:16px;background:#fbfdff}.journal-section h3{margin:0 0 12px;font-size:15px}.journal-form label{display:grid;gap:6px;font-size:13px;font-weight:800;margin-bottom:12px}.journal-form textarea{min-height:82px;resize:vertical;border:1px solid #ccd7e0;border-radius:10px;padding:11px;background:#fff}.journal-form textarea.tall{min-height:125px}.journal-two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.journal-footer{display:flex;justify-content:space-between;align-items:center;gap:15px;color:#718096;font-size:12px}.recap-summary{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}.recap-summary span{background:#eef4f8;border:1px solid #dce6ed;padding:8px 11px;border-radius:10px;font-size:12px}.recap-summary b{margin-left:4px}.toast{position:fixed;right:22px;bottom:22px;background:#14213d;color:white;padding:11px 15px;border-radius:10px;box-shadow:0 8px 25px #0003;font-size:13px}@media(max-width:760px){.journal-head{flex-direction:column}.journal-meta{justify-content:flex-start}.journal-two{grid-template-columns:1fr}.shell{padding:18px 14px 40px}.schedule-card{grid-template-columns:1fr}.hero h1,.meeting-head h1{font-size:28px}.hero-stat{width:70px;height:70px}.meeting-head{gap:15px;align-items:flex-start}.schedule-card .btn{width:100%}}
   `;document.head.appendChild(s);
 }
 
