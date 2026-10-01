@@ -10,6 +10,11 @@
 ================================================================ */
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbzdFMIw-gjkcGz5b-Ymun8j6-0qS_9OBaHOpH3zgVBzZ1YRBLKeZwZCim7SamZD1d6NZQ/exec';
+
+// Untuk Kelas XI/XII TJKT pada mata pelajaran Pilihan / Pilihan Lanjutan,
+// Materi/LKPD dikelola langsung di TJKT Learning Hub. SIAKAD tidak menyalin file.
+const TJKT_LEARNING_HUB_URL = 'https://script.google.com/a/macros/guru.smk.belajar.id/s/AKfycbxZWP_UNHqaUAn_qdObh0rNKP4Re2ArKLIXechffHD7QCyC_73CY_qqVSnzfKlJppdx/exec';
+
 // V26 memakai JSONP agar dapat diuji dari localhost dan GitHub Pages tanpa
 // bergantung pada CORS header dari Google Apps Script Web App.
 const TOKEN_KEY = 'siakad_personal_v25_token';
@@ -162,6 +167,24 @@ function renderToday(r) {
     <section class="schedule-list">${list}</section>`);
 }
 
+function isTjktLearningHubSchedule(s){
+  if(!s)return false;
+  const kelas=String(s.kelas||'').toUpperCase().replace(/\s+/g,' ').trim();
+  const mapel=String(s.mapel||'').toUpperCase().replace(/\s+/g,' ').trim();
+  const kelasTjkt=(kelas.includes('XI')||kelas.includes('XII')) && kelas.includes('TJKT');
+  const mapelPilihan=mapel.includes('PILIHAN');
+  return kelasTjkt && mapelPilihan;
+}
+
+function openMaterials(){
+  if(isTjktLearningHubSchedule(state.schedule)){
+    const w=window.open(TJKT_LEARNING_HUB_URL,'_blank','noopener,noreferrer');
+    if(!w) alert('Browser memblokir tab baru. Izinkan pop-up untuk membuka TJKT Learning Hub.');
+    return;
+  }
+  loadMaterials();
+}
+
 async function openMeeting(jadwalId) {
   try {
     const r = await api('getOrCreateMeeting', { token: state.token, jadwalId });
@@ -189,7 +212,7 @@ async function renderMeeting() {
       <button id="teacherCheckBtn" class="btn primary" onclick="checkInTeacher()">👨‍🏫 Presensi Guru</button>
       <button class="btn secondary" onclick="loadStudents()">👨‍🎓 Absensi Siswa</button>
       <button class="btn secondary" onclick="loadJournal()">📝 Jurnal</button>
-      <button class="btn secondary" onclick="loadMaterials()">📚 Materi/LKPD</button>
+      <button class="btn secondary" onclick="openMaterials()">📚 Materi/LKPD ${isTjktLearningHubSchedule(s)?'↗':''}</button>
       <button class="btn secondary" onclick="loadResources('TUGAS')">📋 Tugas</button>
       <button class="btn secondary" onclick="loadResources('PENILAIAN')">📊 Penilaian</button>
       <button class="btn secondary" onclick="loadMonthlyRecap()">📊 Rekap Bulanan</button>
