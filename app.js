@@ -9,7 +9,7 @@
                       -> Jurnal -> Materi/LKPD -> Tugas -> Penilaian
 ================================================================ */
 
-const API_URL = 'PASTE_SIAKAD_WEB_APP_URL_HERE';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzdFMIw-gjkcGz5b-Ymun8j6-0qS_9OBaHOpH3zgVBzZ1YRBLKeZwZCim7SamZD1d6NZQ/exec';
 
 // Untuk Kelas XI/XII TJKT pada mata pelajaran Pilihan / Pilihan Lanjutan,
 // Materi/LKPD dikelola langsung di TJKT Learning Hub. SIAKAD tidak menyalin file.
